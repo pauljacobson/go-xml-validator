@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/">
+
+<channel>
+	<title>Sample WordPress Export with Errors</title>
+	<link>https://example.com</link>
+	<description>Sample file with common XML errors</description>
+	
+	<!-- Error 1: CDATA with exclamation mark -->
+	<item>
+		<title>CDATA Exclamation Error</title>
+		<content:encoded><![CDATA[!-- This is a common mistake -->
+		<p>Content with bad CDATA opening</p>]]></content:encoded>
+	</item>
+	
+	<!-- Error 2: Invalid Hex Color -->
+	<item>
+		<title>Bad Hex Color</title>
+		<content:encoded><![CDATA[
+		<div style="color: #12;">
+			This has an invalid hex color code
+		</div>
+		]]></content:encoded>
+	</item>
+	
+	<!-- Error 3: Nested CDATA (not allowed) -->
+	<item>
+		<title>Nested CDATA</title>
+		<content:encoded><![CDATA[
+		<div>
+			<![CDATA[
+			This is a nested CDATA section which is invalid
+			]]>
+		</div>
+		]]></content:encoded>
+	</item>
+	
+	<!-- Error 4: This is now valid XML but will have a content/structure error -->
+	<item>
+		<title>Missing CDATA Wrapper</title>
+		<content:encoded>
+		&lt;div&gt;
+			This should be in a CDATA section but isn't
+		&lt;/div&gt;
+		</content:encoded>
+	</item>
+	
+	<!-- Error 5: Control character in content (will be inserted programmatically during testing) -->
+	<item>
+		<title>Control Character</title>
+		<content:encoded><![CDATA[
+		<p>This has a control character that will be inserted in the test</p>
+		]]></content:encoded>
+	</item>
+	
+	<!-- Error 6: SVG tag that should be self-closing -->
+	<item>
+		<title>SVG Error</title>
+		<content:encoded><![CDATA[
+		<svg width="100" height="100">
+			<rect x="10" y="10" width="80" height="80">
+		</svg>
+		]]></content:encoded>
+	</item>
+	
+	<!-- Error 7: SVG with unquoted attribute -->
+	<item>
+		<title>SVG Unquoted Attribute</title>
+		<content:encoded><![CDATA[
+		<svg width=100 height=100>
+			<rect x="10" y="10" width="80" height="80" />
+		</svg>
+		]]></content:encoded>
+	</item>
+	
+	<!-- Error 8: Multiple CDATA closing sequences -->
+	<item>
+		<title>Multiple CDATA Closings</title>
+		<content:encoded><![CDATA[
+		<div>
+			Here is some text with ]]><![CDATA[ a CDATA closing in the middle
+		</div>
+		]]></content:encoded>
+	</item>
+	
+	<!-- Error 9: Empty CDATA section -->
+	<item>
+		<title>Empty CDATA</title>
+		<content:encoded><![CDATA[]]></content:encoded>
+	</item>
+</channel>
+</rss> 
