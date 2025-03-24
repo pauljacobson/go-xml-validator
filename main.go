@@ -7,11 +7,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/fatih/color"
 )
 
 // ValidationError represents a single XML validation issue
@@ -28,19 +29,36 @@ type ValidationError struct {
 type ValidationOptions struct {
 	MaxErrors int
 	Debug     bool
+	Color     bool // Whether to use colored output
 }
+
+// Define color functions 
+var (
+	successColor   = color.New(color.FgGreen).SprintFunc()
+	errorColor     = color.New(color.FgRed).SprintFunc()
+	highlightColor = color.New(color.FgYellow).SprintFunc() 
+	headerColor    = color.New(color.FgCyan).SprintFunc()
+	infoColor      = color.New(color.FgBlue).SprintFunc()
+)
 
 func main() {
 	// Parse command-line flags
 	opts := ValidationOptions{}
 	flag.IntVar(&opts.MaxErrors, "max-errors", 5, "Maximum number of errors to report")
 	flag.BoolVar(&opts.Debug, "debug", false, "Enable debug output")
+	flag.BoolVar(&opts.Color, "color", true, "Enable colored output")
 	flag.Parse()
+
+	// Apply color setting
+	if !opts.Color {
+		// Disable all colors if the color flag is false
+		color.NoColor = true
+	}
 
 	// Check for required file argument
 	args := flag.Args()
 	if len(args) < 1 {
-		fmt.Println("Usage: xml_validator [--max-errors=N] [--debug] <xml-file-or-URL>")
+		fmt.Println("Usage: xml_validator [--max-errors=N] [--debug] [--color] <xml-file-or-URL>")
 		os.Exit(1)
 	}
 
@@ -60,13 +78,13 @@ func main() {
 	
 	// Display results
 	if len(allErrors) == 0 {
-		fmt.Println("✅ XML is well-formed!")
+		fmt.Println(successColor("✅ XML is well-formed!"))
 		os.Exit(0)
 	}
 
 	// Report errors
-	fmt.Printf("❌ Found %d XML issues (showing up to %d):\n", len(allErrors), opts.MaxErrors)
-	fmt.Println("----------------------------------------")
+	fmt.Printf("%s Found %d XML issues (showing up to %d):\n", errorColor("❌"), len(allErrors), opts.MaxErrors)
+	fmt.Println(headerColor("----------------------------------------"))
 	
 	maxToShow := opts.MaxErrors
 	if maxToShow > len(allErrors) {
@@ -78,8 +96,8 @@ func main() {
 	}
 	
 	if len(allErrors) > opts.MaxErrors {
-		fmt.Printf("\nNote: Found more errors than displayed (%d total). Run with --max-errors=%d to see all.\n", 
-			len(allErrors), len(allErrors))
+		fmt.Printf("\n%s Found more errors than displayed (%d total). Run with --max-errors=%d to see all.\n", 
+			infoColor("Note:"), len(allErrors), len(allErrors))
 	}
 	
 	// Print correction tips
@@ -90,7 +108,7 @@ func main() {
 // readFileContent reads content from a local file or remote URL
 func readFileContent(filepath string) ([]byte, error) {
 	if strings.HasPrefix(filepath, "http://") || strings.HasPrefix(filepath, "https://") {
-		fmt.Println("Downloading from URL...")
+		fmt.Println(infoColor("Downloading from URL..."))
 		resp, err := http.Get(filepath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to download file: %v", err)
@@ -101,10 +119,10 @@ func readFileContent(filepath string) ([]byte, error) {
 			return nil, fmt.Errorf("HTTP error: %s", resp.Status)
 		}
 		
-		return ioutil.ReadAll(resp.Body)
+		return io.ReadAll(resp.Body)
 	} else {
-		fmt.Println("Reading local file...")
-		return ioutil.ReadFile(filepath)
+		fmt.Println(infoColor("Reading local file..."))
+		return os.ReadFile(filepath)
 	}
 }
 
@@ -121,10 +139,10 @@ func validateXML(content []byte, opts ValidationOptions) []ValidationError {
 	
 	// If there are no basic XML errors, run additional checks
 	if len(basicErrors) == 0 {
-		fmt.Println("Basic XML validation passed. Performing additional checks...")
+		fmt.Println(successColor("Basic XML validation passed. Performing additional checks..."))
 		
 		// 2. Check CDATA sections
-		fmt.Println("Checking CDATA sections...")
+		fmt.Println(infoColor("Checking CDATA sections..."))
 		cdataErrors := validateCDATASections(content, opts)
 		allErrors = append(allErrors, cdataErrors...)
 		if len(allErrors) >= opts.MaxErrors && opts.MaxErrors > 0 {
@@ -132,7 +150,7 @@ func validateXML(content []byte, opts ValidationOptions) []ValidationError {
 		}
 		
 		// 3. Check for control characters
-		fmt.Println("Checking for control characters...")
+		fmt.Println(infoColor("Checking for control characters..."))
 		controlErrors := validateControlCharacters(content, opts)
 		allErrors = append(allErrors, controlErrors...)
 		if len(allErrors) >= opts.MaxErrors && opts.MaxErrors > 0 {
@@ -140,7 +158,7 @@ func validateXML(content []byte, opts ValidationOptions) []ValidationError {
 		}
 		
 		// 4. Check hex color codes
-		fmt.Println("Checking hex color codes...")
+		fmt.Println(infoColor("Checking hex color codes..."))
 		hexErrors := validateHexColors(content, opts)
 		allErrors = append(allErrors, hexErrors...)
 		if len(allErrors) >= opts.MaxErrors && opts.MaxErrors > 0 {
@@ -148,7 +166,7 @@ func validateXML(content []byte, opts ValidationOptions) []ValidationError {
 		}
 		
 		// 5. Check SVG syntax
-		fmt.Println("Checking SVG syntax...")
+		fmt.Println(infoColor("Checking SVG syntax..."))
 		svgErrors := validateSVG(content, opts)
 		allErrors = append(allErrors, svgErrors...)
 	}
@@ -470,13 +488,16 @@ func findErrorPosition(content []byte, offset int) (line, col int, lineContent s
 
 // displayError formats and prints a single validation error
 func displayError(content []byte, err ValidationError, index int) {
-	fmt.Printf("\nIssue #%d:\n", index)
-	fmt.Printf("Line %d, Column %d: %s\n", err.LineNumber, err.Column, err.ErrorType)
-	fmt.Printf("Message: %s\n", err.Message)
+	fmt.Printf("\n%s #%d:\n", headerColor("Issue"), index)
+	fmt.Printf("%s %d, %s %d: %s\n", 
+		infoColor("Line"), err.LineNumber, 
+		infoColor("Column"), err.Column, 
+		errorColor(err.ErrorType))
+	fmt.Printf("%s %s\n", infoColor("Message:"), highlightColor(err.Message))
 	
 	// Show context (lines before and after the error)
-	fmt.Println("\nContext:")
-	fmt.Println("----------------------------------------")
+	fmt.Printf("\n%s\n", infoColor("Context:"))
+	fmt.Println(headerColor("----------------------------------------"))
 	
 	scanner := bufio.NewScanner(bytes.NewReader(content))
 	lineNum := 1
@@ -489,14 +510,20 @@ func displayError(content []byte, err ValidationError, index int) {
 	for scanner.Scan() {
 		if lineNum >= contextStart && lineNum <= contextEnd {
 			line := scanner.Text()
-			fmt.Printf("%4d: %s\n", lineNum, line)
+			
+			// Use different color for the line with the error
+			if lineNum == err.LineNumber {
+				fmt.Printf("%s: %s\n", infoColor(fmt.Sprintf("%4d", lineNum)), highlightColor(line))
+			} else {
+				fmt.Printf("%s: %s\n", infoColor(fmt.Sprintf("%4d", lineNum)), line)
+			}
 			
 			// If this is the error line, add a pointer
 			if lineNum == err.LineNumber && err.Column > 0 {
-				pointer := strings.Repeat(" ", err.Column+5) + "^"
+				pointer := strings.Repeat(" ", err.Column+5) + errorColor("^")
 				if len(err.Content) > 1 {
 					// For multi-character errors, extend the pointer
-					pointer += strings.Repeat("~", len(err.Content)-1)
+					pointer += errorColor(strings.Repeat("~", len(err.Content)-1))
 				}
 				fmt.Println(pointer)
 			}
@@ -507,27 +534,29 @@ func displayError(content []byte, err ValidationError, index int) {
 		}
 	}
 	
-	fmt.Println("----------------------------------------")
+	fmt.Println(headerColor("----------------------------------------"))
 }
 
 // printCorrectionTips prints common correction suggestions
 func printCorrectionTips() {
-	fmt.Println("\nCommon XML issues detected by this validator:")
-	fmt.Println("  - Special characters immediately after <![CDATA[ marker")
-	fmt.Println("  - Unescaped ']]>' sequences within CDATA content")
-	fmt.Println("  - Unclosed CDATA sections (missing ]]>)")
-	fmt.Println("  - Nested CDATA sections (not allowed in XML)")
-	fmt.Println("  - Control characters (non-printable ASCII 0-31) in CDATA sections")
-	fmt.Println("  - Malformed hex color codes (should be #RGB, #RRGGBB, or #RRGGBBAA)")
-	fmt.Println("  - Improperly closed SVG elements")
-	fmt.Println("  - SVG attributes without proper quoting")
-	fmt.Println()
-	fmt.Println("Correction tips:")
-	fmt.Println("  - CDATA sections: <![CDATA[content]]> with no special characters after opening marker")
-	fmt.Println("  - Hex colors: Use standard formats like #RGB, #RRGGBB, #RRGGBBAA")
-	fmt.Println("  - SVG elements: Self-closing tags must end with />")
-	fmt.Println("  - SVG attributes: Always use quotes for attribute values: width=\"100\"")
-	fmt.Println("  - Control characters: Remove them with:\n    go run xml_fixer.go yourfile.xml")
-	fmt.Println()
-	fmt.Println("For WordPress import files, CDATA errors are particularly important to fix.")
+	fmt.Printf("\n%s\n", headerColor("Common XML issues detected by this validator:"))
+	fmt.Printf("  - %s\n", highlightColor("Special characters immediately after <![CDATA[ marker"))
+	fmt.Printf("  - %s\n", highlightColor("Unescaped ']]>' sequences within CDATA content"))
+	fmt.Printf("  - %s\n", highlightColor("Unclosed CDATA sections (missing ]]>)"))
+	fmt.Printf("  - %s\n", highlightColor("Nested CDATA sections (not allowed in XML)"))
+	fmt.Printf("  - %s\n", highlightColor("Control characters (non-printable ASCII 0-31) in CDATA sections"))
+	fmt.Printf("  - %s\n", highlightColor("Malformed hex color codes (should be #RGB, #RRGGBB, or #RRGGBBAA)"))
+	fmt.Printf("  - %s\n", highlightColor("Improperly closed SVG elements"))
+	fmt.Printf("  - %s\n", highlightColor("SVG attributes without proper quoting"))
+	
+	fmt.Printf("\n%s\n", headerColor("Correction tips:"))
+	fmt.Printf("  - %s: <![CDATA[content]]> with no special characters after opening marker\n", successColor("CDATA sections"))
+	fmt.Printf("  - %s: Use standard formats like #RGB, #RRGGBB, #RRGGBBAA\n", successColor("Hex colors"))
+	fmt.Printf("  - %s: Self-closing tags must end with />\n", successColor("SVG elements"))
+	fmt.Printf("  - %s: Always use quotes for attribute values: width=\"100\"\n", successColor("SVG attributes"))
+	fmt.Printf("  - %s: Remove them with:\n    %s\n", 
+		successColor("Control characters"), 
+		infoColor("go run xml_fixer.go yourfile.xml"))
+	
+	fmt.Printf("\n%s\n", highlightColor("For WordPress import files, CDATA errors are particularly important to fix."))
 } 
