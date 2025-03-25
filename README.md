@@ -2,6 +2,8 @@
 
 A comprehensive XML validation tool that checks for well-formedness and common issues often found in XML files, particularly WordPress export files.
 
+**I created this using Cursor AI and Claude. This is very much an experiment for me.**
+
 ## Features
 
 - Basic XML well-formedness validation
